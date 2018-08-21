@@ -131,5 +131,6 @@ public abstract class ContentManager {
         public int httpTimeoutMillis = 15000;
         public int maxConcurrentDownloads = 4;
         public String applicationName = "";
+        public boolean useCellularData = true;
     }
 }
