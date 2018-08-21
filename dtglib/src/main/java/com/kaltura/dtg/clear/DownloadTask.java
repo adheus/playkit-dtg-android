@@ -16,6 +16,7 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.net.UnknownHostException;
 
 /**
  * Created by noamt on 5/13/15.
@@ -45,9 +46,7 @@ class DownloadTask {
     DownloadTask(String url, String targetFile) throws MalformedURLException {
         this(new URL(url), new File(targetFile));
     }
-    
-    
-    
+
     @Override
     public String toString() {
         return "<DownloadTask id='" + taskId + "' url='" + url + "' target='" + targetFile + "'>";
@@ -57,13 +56,12 @@ class DownloadTask {
         File parent = targetFile.getParentFile();
         return parent.mkdirs() || parent.isDirectory();
     }
-    
-    void download() throws HttpRetryException {
-        
+
+    void download() throws IOException {
         URL url = this.url;
         File targetFile = this.targetFile;
-//        Log.d(TAG, "Task " + taskId + ": download " + url + " to " + targetFile);
-        
+        // Log.d(TAG, "Task " + taskId + ": download " + url + " to " + targetFile);
+
         // Create parent dir if needed
         if (!createParentDir(targetFile)) {
             Log.e(TAG, "Can't create parent dir");
@@ -74,12 +72,12 @@ class DownloadTask {
         reportProgress(State.STARTED, 0, null);
 
         long localFileSize = targetFile.length();
-        
+
         // If file is already downloaded, make sure it's not larger than the remote.
         if (localFileSize > 0) {
             try {
                 long remoteFileSize = Utils.httpHeadGetLength(url);
-                
+
                 // finish before even starting, if file is already complete.
                 if (localFileSize == remoteFileSize) {
                     // We're done.
@@ -93,7 +91,6 @@ class DownloadTask {
                     }
                     localFileSize = 0;
                 }
-
             } catch (InterruptedIOException e) {
                 Log.d(TAG, "Task " + taskId + " interrupted (1)");
                 reportProgress(State.STOPPED, 0, null);
@@ -104,12 +101,11 @@ class DownloadTask {
             }
         }
 
-
         // Start the actual download.
         InputStream inputStream = null;
         HttpURLConnection conn = null;
         FileOutputStream fileOutputStream = null;
-        
+
         State stopReason = null;
         Exception stopError = null;
 
@@ -156,7 +152,7 @@ class DownloadTask {
                 }
 
                 if (progressReportBytes > 0 && progressReportCounter >= PROGRESS_REPORT_COUNT) {
-//                    Log.v(TAG, "progressReportBytes:" + progressReportBytes + "; progressReportCounter:" + progressReportCounter);
+                    // Log.v(TAG, "progressReportBytes:" + progressReportBytes + "; progressReportCounter:" + progressReportCounter);
                     reportProgress(State.IN_PROGRESS, progressReportBytes, null);
                     progressReportBytes = 0;
                     progressReportCounter = 0;
@@ -164,27 +160,26 @@ class DownloadTask {
             }
 
             stopReason = State.COMPLETED;
-
         } catch (SocketTimeoutException e) {
             // Not a fatal error -- consider retry.
             retryCount++;
             if (retryCount < downloadSettings.maxDownloadRetries) {
                 throw new HttpRetryException(e.getMessage(), 1, url.toExternalForm());
             }
-//            Log.d(TAG, "Task " + taskId + " failed", e);
+
+            // Log.d(TAG, "Task " + taskId + " failed", e);
             stopReason = State.ERROR;
             stopError = e;
 
         } catch (InterruptedIOException e) {
             // Not an error -- task is cancelled.
-//            Log.d(TAG, "Task " + taskId + " interrupted");
+            // Log.d(TAG, "Task " + taskId + " interrupted");
             stopReason = State.STOPPED;
-
         } catch (IOException e) {
-//            Log.d(TAG, "Task " + taskId + " failed", e);
-            stopReason = State.ERROR;
+            // Log.d(TAG, "Task " + taskId + " failed", e);
+            stopReason = State.STOPPED;
             stopError = e;
-
+            throw e;
         } finally {
             Utils.safeClose(inputStream, fileOutputStream);
             if (conn != null) {
@@ -195,6 +190,7 @@ class DownloadTask {
             if (progressReportBytes > 0) {
                 reportProgress(State.IN_PROGRESS, progressReportBytes, stopError);
             }
+
             if (stopReason != null) {
                 reportProgress(stopReason, 0, stopError);
             }
@@ -202,14 +198,14 @@ class DownloadTask {
     }
 
     private void reportProgress(final State state, final int newBytes, Exception stopError) {
-//        Log.d(TAG, "progress: " + this.taskId + ", " + state + ", " + newBytes + ", " + stopError);
+        // Log.d(TAG, "progress: " + this.taskId + ", " + state + ", " + newBytes + ", " + stopError);
         listener.onTaskProgress(this, state, newBytes, stopError);
     }
 
     public Listener getListener() {
         return listener;
     }
-    
+
     public void setListener(Listener listener) {
         this.listener = listener;
     }
@@ -236,7 +232,7 @@ class DownloadTask {
     }
 
     enum State {
-        IDLE, STARTED, IN_PROGRESS, COMPLETED, STOPPED, ERROR;
+        IDLE, STARTED, IN_PROGRESS, COMPLETED, STOPPED, ERROR, PAUSED
     }
 
     interface Listener {
