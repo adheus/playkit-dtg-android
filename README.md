@@ -1,4 +1,4 @@
-[![](https://jitpack.io/v/com.kaltura/playkit-dtg-android.svg)](https://jitpack.io/#com.kaltura/playkit-dtg-android) [![Travis](https://img.shields.io/travis/kaltura/playkit-dtg-android.svg)](https://travis-ci.org/kaltura/playkit-dtg-android)
+[![](https://jitpack.io/v/com.adheus/playkit-dtg-android.svg)](https://jitpack.io/#com.adheus/playkit-dtg-android) [![Travis](https://img.shields.io/travis/adheus/playkit-dtg-android.svg)](https://travis-ci.org/adheus/playkit-dtg-android)
 
 This is a fork of from the original repo from Playkit (https://github.com/kaltura/playkit-dtg-android)
 
