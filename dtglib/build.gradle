@@ -1,8 +1,7 @@
 apply plugin: 'com.android.library'
 apply from: '../version.gradle'
-apply from: 'bintray.gradle'
 
-group='com.github.kaltura'
+group='com.github.adheus'
 
 android {
     compileSdkVersion 27
