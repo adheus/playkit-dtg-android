@@ -186,13 +186,8 @@ class DownloadTask {
                 conn.disconnect();
             }
 
-            // Maybe some bytes are still waiting to be reported
-            if (progressReportBytes > 0) {
-                reportProgress(State.IN_PROGRESS, progressReportBytes, stopError);
-            }
-
             if (stopReason != null) {
-                reportProgress(stopReason, 0, stopError);
+                reportProgress(stopReason, progressReportBytes, stopError);
             }
         }
     }
