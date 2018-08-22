@@ -2,6 +2,7 @@ package com.kaltura.dtg.clear;
 
 import android.util.Log;
 
+import com.kaltura.dtg.ContentManager;
 import com.kaltura.dtg.Utils;
 
 import java.io.File;
@@ -10,18 +11,19 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
+import java.net.HttpRetryException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
+import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.net.UnknownHostException;
 
 /**
  * Created by noamt on 5/13/15.
  */
 class DownloadTask {
-    static final String TAG = "DownloadTask";
-    private static final int HTTP_READ_TIMEOUT_MS = 5000;
-    private static final int HTTP_CONNECT_TIMEOUT_MS = 5000;
-    private static final int PROGRESS_REPORT_COUNT = 20;
+    private static final String TAG = "DownloadTask";
+    private static final int PROGRESS_REPORT_COUNT = 100;
 
     // TODO: Hold url and targetFile as Strings, only convert to URL/File when used.
     final String taskId;
@@ -32,6 +34,8 @@ class DownloadTask {
 
     private Listener listener;  // this is the service
 
+    private int retryCount = 0;
+    private ContentManager.Settings downloadSettings;
 
     DownloadTask(URL url, File targetFile) {
         this.url = url;
@@ -42,7 +46,7 @@ class DownloadTask {
     DownloadTask(String url, String targetFile) throws MalformedURLException {
         this(new URL(url), new File(targetFile));
     }
-    
+
     @Override
     public String toString() {
         return "<DownloadTask id='" + taskId + "' url='" + url + "' target='" + targetFile + "'>";
@@ -52,13 +56,12 @@ class DownloadTask {
         File parent = targetFile.getParentFile();
         return parent.mkdirs() || parent.isDirectory();
     }
-    
-    void download() {
-        
+
+    void download() throws IOException {
         URL url = this.url;
         File targetFile = this.targetFile;
-        Log.d(TAG, "Task " + taskId + ": download " + url + " to " + targetFile);
-        
+        // Log.d(TAG, "Task " + taskId + ": download " + url + " to " + targetFile);
+
         // Create parent dir if needed
         if (!createParentDir(targetFile)) {
             Log.e(TAG, "Can't create parent dir");
@@ -67,47 +70,50 @@ class DownloadTask {
         }
 
         reportProgress(State.STARTED, 0, null);
-        long remoteFileSize;
-        try {
-            remoteFileSize = Utils.httpHeadGetLength(url);
-        } catch (InterruptedIOException e) {
-            Log.d(TAG, "Task " + taskId + " interrupted (1)");
-            reportProgress(State.STOPPED, 0, null);
-            return;
-        } catch (IOException e) {
-            Log.e(TAG, "HEAD request failed for " + url, e);
-            remoteFileSize = -1;
-        }
 
-        long localFileSize = targetFile.exists() ? targetFile.length() : 0;
+        long localFileSize = targetFile.length();
 
-        // finish before even starting, if file is already complete.
-        if (localFileSize == remoteFileSize) {
-            // We're done.
-            reportProgress(State.COMPLETED, 0, null);
-            return;
-        } else if (localFileSize > remoteFileSize) {
-            // This is really odd. Delete and try again.
-            Log.w(TAG, "Target file is longer than remote. Deleting the target.");
-            if (!targetFile.delete()) {
-                Log.w(TAG, "Can't delete targetFile");
+        // If file is already downloaded, make sure it's not larger than the remote.
+        if (localFileSize > 0) {
+            try {
+                long remoteFileSize = Utils.httpHeadGetLength(url);
+
+                // finish before even starting, if file is already complete.
+                if (localFileSize == remoteFileSize) {
+                    // We're done.
+                    reportProgress(State.COMPLETED, 0, null);
+                    return;
+                } else if (localFileSize > remoteFileSize) {
+                    // This is really odd. Delete and try again.
+                    Log.w(TAG, "Target file is longer than remote. Deleting the target.");
+                    if (!targetFile.delete()) {
+                        Log.w(TAG, "Can't delete targetFile");
+                    }
+                    localFileSize = 0;
+                }
+            } catch (InterruptedIOException e) {
+                Log.d(TAG, "Task " + taskId + " interrupted (1)");
+                reportProgress(State.STOPPED, 0, null);
+                return;
+            } catch (IOException e) {
+                Log.e(TAG, "HEAD request failed for " + url, e);
+                // Nothing to do, but this is not fatal. Just continue.
             }
-            localFileSize = 0;
         }
 
         // Start the actual download.
         InputStream inputStream = null;
         HttpURLConnection conn = null;
         FileOutputStream fileOutputStream = null;
-        
+
         State stopReason = null;
         Exception stopError = null;
 
         int progressReportBytes = 0;
         try {
             conn = (HttpURLConnection) url.openConnection();
-            conn.setReadTimeout(HTTP_READ_TIMEOUT_MS);
-            conn.setConnectTimeout(HTTP_CONNECT_TIMEOUT_MS);
+            conn.setReadTimeout(downloadSettings.httpTimeoutMillis);
+            conn.setConnectTimeout(downloadSettings.httpTimeoutMillis);
             conn.setDoInput(true);
 
             if (localFileSize > 0) {
@@ -129,6 +135,7 @@ class DownloadTask {
             int byteCount;
             progressReportBytes = 0;
             int progressReportCounter = 0;
+
             while (true) {
                 byteCount = inputStream.read(buffer);
 
@@ -145,25 +152,34 @@ class DownloadTask {
                 }
 
                 if (progressReportBytes > 0 && progressReportCounter >= PROGRESS_REPORT_COUNT) {
-                    Log.v(TAG, "progressReportBytes:" + progressReportBytes + "; progressReportCounter:" + progressReportCounter);
-                    reportProgress(State.IN_PROGRESS, progressReportBytes, stopError);
+                    // Log.v(TAG, "progressReportBytes:" + progressReportBytes + "; progressReportCounter:" + progressReportCounter);
+                    reportProgress(State.IN_PROGRESS, progressReportBytes, null);
                     progressReportBytes = 0;
                     progressReportCounter = 0;
                 }
             }
 
             stopReason = State.COMPLETED;
+        } catch (SocketTimeoutException e) {
+            // Not a fatal error -- consider retry.
+            retryCount++;
+            if (retryCount < downloadSettings.maxDownloadRetries) {
+                throw new HttpRetryException(e.getMessage(), 1, url.toExternalForm());
+            }
 
-        } catch (InterruptedIOException e) {
-            // Not an error -- task is cancelled.
-            Log.d(TAG, "Task " + taskId + " interrupted");
-            stopReason = State.STOPPED;
-
-        } catch (IOException e) {
-            Log.d(TAG, "Task " + taskId + " failed", e);
+            // Log.d(TAG, "Task " + taskId + " failed", e);
             stopReason = State.ERROR;
             stopError = e;
 
+        } catch (InterruptedIOException e) {
+            // Not an error -- task is cancelled.
+            // Log.d(TAG, "Task " + taskId + " interrupted");
+            stopReason = State.STOPPED;
+        } catch (IOException e) {
+            // Log.d(TAG, "Task " + taskId + " failed", e);
+            stopReason = State.STOPPED;
+            stopError = e;
+            throw e;
         } finally {
             Utils.safeClose(inputStream, fileOutputStream);
             if (conn != null) {
@@ -174,6 +190,7 @@ class DownloadTask {
             if (progressReportBytes > 0) {
                 reportProgress(State.IN_PROGRESS, progressReportBytes, stopError);
             }
+
             if (stopReason != null) {
                 reportProgress(stopReason, 0, stopError);
             }
@@ -181,14 +198,14 @@ class DownloadTask {
     }
 
     private void reportProgress(final State state, final int newBytes, Exception stopError) {
-        Log.d(TAG, "progress: " + state + ", " + newBytes);
+        // Log.d(TAG, "progress: " + this.taskId + ", " + state + ", " + newBytes + ", " + stopError);
         listener.onTaskProgress(this, state, newBytes, stopError);
     }
 
     public Listener getListener() {
         return listener;
     }
-    
+
     public void setListener(Listener listener) {
         this.listener = listener;
     }
@@ -210,12 +227,12 @@ class DownloadTask {
         return code;
     }
 
+    void setDownloadSettings(ContentManager.Settings downloadSettings) {
+        this.downloadSettings = downloadSettings;
+    }
+
     enum State {
-        IDLE, STARTED, IN_PROGRESS, COMPLETED, STOPPED, ERROR;
-        private final static State[] values = values();
-        static State fromOrdinal(int ordinal) {
-            return values[ordinal];
-        }
+        IDLE, STARTED, IN_PROGRESS, COMPLETED, STOPPED, ERROR, PAUSED
     }
 
     interface Listener {
