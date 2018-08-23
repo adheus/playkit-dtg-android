@@ -3,6 +3,7 @@ package com.kaltura.dtg.clear;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.database.sqlite.SQLiteConstraintException;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -29,11 +30,9 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -87,16 +86,16 @@ public class DefaultDownloadService extends Service {
 
         final String itemId = task.itemId;
         if (removedItems.containsKey(itemId)) {
-           if (!removedItems.get(itemId)) {
-               removedItems.put(itemId, true);
-               // Ignore this report.
-               listenerHandler.post(new Runnable() {
-                   @Override
-                   public void run() {
-                       downloadStateListener.onDownloadRemoved(itemId);
-                   }
-               });
-           }
+            if (!removedItems.get(itemId)) {
+                removedItems.put(itemId, true);
+                // Ignore this report.
+                listenerHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        downloadStateListener.onDownloadRemoved(itemId);
+                    }
+                });
+            }
             return;
         }
 
@@ -349,16 +348,19 @@ public class DefaultDownloadService extends Service {
             @Override
             public void run() {
                 try {
-                    downloadMetadata(item);
-                    item.setState(DownloadState.INFO_LOADED);
-                    updateItemInfoInDB(item,
-                            Database.COL_ITEM_STATE, Database.COL_ITEM_ESTIMATED_SIZE,
-                            Database.COL_ITEM_PLAYBACK_PATH);
-                    downloadStateListener.onDownloadMetadata(item, null);
-
+                    if (!removedItems.containsKey(item.getItemId())) {
+                        downloadMetadata(item);
+                        item.setState(DownloadState.INFO_LOADED);
+                        updateItemInfoInDB(item,
+                                Database.COL_ITEM_STATE, Database.COL_ITEM_ESTIMATED_SIZE,
+                                Database.COL_ITEM_PLAYBACK_PATH);
+                        downloadStateListener.onDownloadMetadata(item, null);
+                    }
                 } catch (IOException e) {
-                    Log.e(TAG, "Failed to download metadata for " + item.getItemId(), e);
+                    Log.e(TAG, "Failed to download metadata for " + item.getItemId() + ", removed: " + removedItems.containsKey(item.getItemId()), e);
                     downloadStateListener.onDownloadMetadata(item, e);
+                } catch (SQLiteConstraintException e) {
+                    Log.e(TAG, "Failed to save metadata for " + item.getItemId() + ", removed: " + removedItems.containsKey(item.getItemId()), e);
                 }
             }
         });
@@ -552,7 +554,6 @@ public class DefaultDownloadService extends Service {
             // progress.
             removedItems.put(item.getItemId(), false);
         }
-
 
 
         deleteItemFiles(item.getItemId());
