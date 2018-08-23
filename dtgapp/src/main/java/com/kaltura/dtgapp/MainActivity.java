@@ -196,6 +196,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onDownloadPause(DownloadItem item, DownloadStateReason reason, Exception error) {
                 Log.d(TAG, "onDownloadPause: " + item.getItemId() + "; reason: " + reason.name() + "; " + item.getDownloadedSizeBytes() / 1024);
+                if (error != null) {
+                    error.printStackTrace();
+                }
             }
 
             @Override

@@ -27,6 +27,8 @@ import com.kaltura.dtg.Utils;
 import java.io.File;
 import java.io.IOException;
 import java.net.HttpRetryException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -138,10 +140,17 @@ public class DefaultDownloadService extends Service {
             if (!pausedItems.contains(item.getItemId())) {
                 item.setState(DownloadState.PAUSED);
                 database.updateItemState(item.getItemId(), DownloadState.PAUSED);
+
+                final DownloadStateReason stateReason;
+                if (stopError instanceof SocketException || stopError instanceof SocketTimeoutException) {
+                    stateReason = DownloadStateReason.PAUSED_BY_NETWORK;
+                } else {
+                    stateReason = DownloadStateReason.PAUSED_BY_ERROR;
+                }
                 listenerHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        downloadStateListener.onDownloadPause(item, DownloadStateReason.PAUSED_BY_ERROR, stopError);
+                        downloadStateListener.onDownloadPause(item, stateReason, stopError);
                     }
                 });
             }
