@@ -58,6 +58,7 @@ public class DefaultDownloadService extends Service {
     private ContentManager.Settings settings;
 
     private HashSet<String> removedItems = new HashSet<>();
+    private HashSet<String> pausedItems = new HashSet<>();
 
     public DefaultDownloadService(Context context) {
         this.context = context;
@@ -135,14 +136,16 @@ public class DefaultDownloadService extends Service {
                 }
             });
         } else if (item.getState() != DownloadState.PAUSED && newState == DownloadTask.State.STOPPED) {
-            item.setState(DownloadState.PAUSED);
-            database.updateItemState(item.getItemId(), DownloadState.PAUSED);
-            listenerHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    downloadStateListener.onDownloadPause(item);
-                }
-            });
+            if (!pausedItems.contains(item.getItemId())) {
+                item.setState(DownloadState.PAUSED);
+                database.updateItemState(item.getItemId(), DownloadState.PAUSED);
+                listenerHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        downloadStateListener.onDownloadPause(item);
+                    }
+                });
+            }
         } else if (pendingCount > 0 || newState == DownloadTask.State.IN_PROGRESS) {
             listenerHandler.post(new Runnable() {
                 @Override
@@ -238,7 +241,7 @@ public class DefaultDownloadService extends Service {
         taskProgressHandler = null;
     }
 
-    void pauseItemDownload(String itemId) {
+    void pauseItemDownload(final String itemId) {
         if (itemId != null) {
             futureMap.cancelItem(itemId);
         } else {
@@ -467,6 +470,8 @@ public class DefaultDownloadService extends Service {
             throw new IllegalStateException("Can't download empty itemId");
         }
 
+        pausedItems.remove(itemId);
+
         final DefaultDownloadItem item = findItemImpl(itemId);
         if (item == null) {
             throw new IllegalStateException("Can't find item in db");
@@ -509,11 +514,21 @@ public class DefaultDownloadService extends Service {
     public void pauseDownload(final DefaultDownloadItem item) {
         assertStarted();
 
-        if (item != null) {
+        if (item != null && !pausedItems.contains(item.getItemId())) {
+            pausedItems.add(item.getItemId());
             int countPendingFiles = database.countPendingFiles(item.getItemId());
             if (countPendingFiles > 0) {
                 pauseItemDownload(item.getItemId());
             }
+
+            item.setState(DownloadState.PAUSED);
+            database.updateItemState(item.getItemId(), DownloadState.PAUSED);
+            listenerHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    downloadStateListener.onDownloadPause(item);
+                }
+            });
         }
     }
 
