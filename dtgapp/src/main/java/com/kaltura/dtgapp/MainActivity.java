@@ -22,6 +22,7 @@ import com.kaltura.dtg.ContentManager;
 import com.kaltura.dtg.DownloadItem;
 import com.kaltura.dtg.DownloadState;
 import com.kaltura.dtg.DownloadStateListener;
+import com.kaltura.dtg.DownloadStateReason;
 import com.kaltura.dtg.Utils;
 
 import org.json.JSONArray;
@@ -191,9 +192,10 @@ public class MainActivity extends AppCompatActivity {
                 uiLog(item);
             }
 
+
             @Override
-            public void onDownloadPause(DownloadItem item) {
-                Log.d(TAG, "onDownloadPause: " + item.getItemId() + "; " + item.getDownloadedSizeBytes() / 1024);
+            public void onDownloadPause(DownloadItem item, DownloadStateReason reason, Exception error) {
+                Log.d(TAG, "onDownloadPause: " + item.getItemId() + "; reason: " + reason.name() + "; " + item.getDownloadedSizeBytes() / 1024);
             }
 
             @Override

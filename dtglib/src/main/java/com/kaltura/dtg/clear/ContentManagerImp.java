@@ -10,6 +10,7 @@ import com.kaltura.dtg.ContentManager;
 import com.kaltura.dtg.DownloadItem;
 import com.kaltura.dtg.DownloadState;
 import com.kaltura.dtg.DownloadStateListener;
+import com.kaltura.dtg.DownloadStateReason;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -49,9 +50,9 @@ public class ContentManagerImp extends ContentManager {
         }
 
         @Override
-        public void onDownloadPause(DownloadItem item) {
+        public void onDownloadPause(DownloadItem item, DownloadStateReason reason, Exception error) {
             for (DownloadStateListener stateListener : stateListeners) {
-                stateListener.onDownloadPause(item);
+                stateListener.onDownloadPause(item, reason, error);
             }
         }
 

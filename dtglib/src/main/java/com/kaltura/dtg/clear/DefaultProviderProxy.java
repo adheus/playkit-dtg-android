@@ -12,6 +12,7 @@ import com.kaltura.dtg.ContentManager;
 import com.kaltura.dtg.DownloadItem;
 import com.kaltura.dtg.DownloadState;
 import com.kaltura.dtg.DownloadStateListener;
+import com.kaltura.dtg.DownloadStateReason;
 
 import java.io.File;
 import java.util.List;
@@ -85,7 +86,7 @@ class DefaultProviderProxy {
     }
 
     public void pauseDownload(DownloadItem item) {
-        service.pauseDownload((DefaultDownloadItem) item);
+        service.pauseDownload((DefaultDownloadItem) item, DownloadStateReason.PAUSED_BY_USER);
     }
 
     public void resumeDownload(DownloadItem item) {

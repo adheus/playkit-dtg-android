@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.kaltura.dtg.DownloadItem;
 import com.kaltura.dtg.DownloadState;
+import com.kaltura.dtg.DownloadStateReason;
 
 import java.io.IOException;
 import java.util.Date;
@@ -127,7 +128,7 @@ class DefaultDownloadItem implements DownloadItem {
 
     @Override
     public void pauseDownload() {
-        service.pauseDownload(this);
+        service.pauseDownload(this, DownloadStateReason.PAUSED_BY_USER);
     }
 
     @Override

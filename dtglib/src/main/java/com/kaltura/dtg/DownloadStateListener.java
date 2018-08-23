@@ -10,7 +10,7 @@ public interface DownloadStateListener {
 
     void onDownloadStart(DownloadItem item);
 
-    void onDownloadPause(DownloadItem item);
+    void onDownloadPause(DownloadItem item, DownloadStateReason reason, Exception error);
 
     void onDownloadFailure(DownloadItem item, Exception error);
     

@@ -21,6 +21,7 @@ import com.kaltura.dtg.ContentManager;
 import com.kaltura.dtg.DownloadItem;
 import com.kaltura.dtg.DownloadState;
 import com.kaltura.dtg.DownloadStateListener;
+import com.kaltura.dtg.DownloadStateReason;
 import com.kaltura.dtg.Utils;
 
 import java.io.File;
@@ -29,12 +30,10 @@ import java.net.HttpRetryException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -142,7 +141,7 @@ public class DefaultDownloadService extends Service {
                 listenerHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        downloadStateListener.onDownloadPause(item);
+                        downloadStateListener.onDownloadPause(item, DownloadStateReason.PAUSED_BY_ERROR, stopError);
                     }
                 });
             }
@@ -174,7 +173,7 @@ public class DefaultDownloadService extends Service {
         }
 
         @Override
-        public void onDownloadPause(DownloadItem item) {
+        public void onDownloadPause(DownloadItem item, DownloadStateReason reason, Exception error) {
 
         }
 
@@ -511,7 +510,7 @@ public class DefaultDownloadService extends Service {
         return item.getState();
     }
 
-    public void pauseDownload(final DefaultDownloadItem item) {
+    public void pauseDownload(final DefaultDownloadItem item, final DownloadStateReason reason) {
         assertStarted();
 
         if (item != null && !pausedItems.contains(item.getItemId())) {
@@ -526,7 +525,7 @@ public class DefaultDownloadService extends Service {
             listenerHandler.post(new Runnable() {
                 @Override
                 public void run() {
-                    downloadStateListener.onDownloadPause(item);
+                    downloadStateListener.onDownloadPause(item, reason, null);
                 }
             });
         }
@@ -549,7 +548,7 @@ public class DefaultDownloadService extends Service {
         }
 
         removedItems.add(item.getItemId());
-        pauseDownload(item);
+        pauseDownload(item, DownloadStateReason.PAUSED_FOR_REMOVING);
 
 
         deleteItemFiles(item.getItemId());
@@ -709,9 +708,9 @@ public class DefaultDownloadService extends Service {
                         if (connManager != null) {
                             NetworkInfo wifi = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
                             if (!wifi.isConnected()) {
-                                DownloadItem item = findItem(itemId);
+                                DefaultDownloadItem item = findItem(itemId);
                                 if (item.getState() != DownloadState.PAUSED) {
-                                    item.pauseDownload();
+                                    pauseDownload(item, DownloadStateReason.PAUSED_BY_NETWORK);
                                 }
                                 break;
                             }
