@@ -362,10 +362,14 @@ public class DefaultDownloadService extends Service {
                     }
                 } catch (IOException e) {
                     Log.e(TAG, "Failed to download metadata for " + item.getItemId() + ", removed: " + removedItems.contains(item.getItemId()), e);
-                    downloadStateListener.onDownloadMetadata(item, e);
+                    if (!removedItems.contains(item.getItemId())) {
+                        downloadStateListener.onDownloadMetadata(item, e);
+                    }
                 } catch (SQLException e) {
                     Log.e(TAG, "Failed to save metadata for " + item.getItemId() + ", removed: " + removedItems.contains(item.getItemId()), e);
-                    downloadStateListener.onDownloadMetadata(item, e);
+                    if (!removedItems.contains(item.getItemId())) {
+                        downloadStateListener.onDownloadMetadata(item, e);
+                    }
                 }
             }
         });
