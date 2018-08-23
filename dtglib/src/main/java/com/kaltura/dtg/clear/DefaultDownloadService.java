@@ -3,7 +3,7 @@ package com.kaltura.dtg.clear;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
-import android.database.sqlite.SQLiteConstraintException;
+import android.database.SQLException;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -363,7 +363,7 @@ public class DefaultDownloadService extends Service {
                 } catch (IOException e) {
                     Log.e(TAG, "Failed to download metadata for " + item.getItemId() + ", removed: " + removedItems.contains(item.getItemId()), e);
                     downloadStateListener.onDownloadMetadata(item, e);
-                } catch (SQLiteConstraintException e) {
+                } catch (SQLException e) {
                     Log.e(TAG, "Failed to save metadata for " + item.getItemId() + ", removed: " + removedItems.contains(item.getItemId()), e);
                     downloadStateListener.onDownloadMetadata(item, e);
                 }
