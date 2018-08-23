@@ -28,6 +28,7 @@ import java.net.HttpRetryException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -45,7 +46,6 @@ public class DefaultDownloadService extends Service {
     private final Context context;  // allow mocking
     private LocalBinder localBinder = new LocalBinder();
     private Database database;
-    private DownloadRequestParams.Adapter adapter;
     private File downloadsDir;
     private boolean started;
     private boolean stopping;
@@ -56,7 +56,7 @@ public class DefaultDownloadService extends Service {
     private Handler taskProgressHandler = null;
     private ContentManager.Settings settings;
 
-    private Set<String> removedItems = new HashSet<>();
+    private HashMap<String, Boolean> removedItems = new HashMap<>();
 
     public DefaultDownloadService(Context context) {
         this.context = context;
@@ -85,10 +85,18 @@ public class DefaultDownloadService extends Service {
             return;
         }
 
-        String itemId = task.itemId;
-
-        if (removedItems.contains(itemId)) {
-            // Ignore this report.
+        final String itemId = task.itemId;
+        if (removedItems.containsKey(itemId)) {
+           if (!removedItems.get(itemId)) {
+               removedItems.put(itemId, true);
+               // Ignore this report.
+               listenerHandler.post(new Runnable() {
+                   @Override
+                   public void run() {
+                       downloadStateListener.onDownloadRemoved(itemId);
+                   }
+               });
+           }
             return;
         }
 
@@ -142,6 +150,7 @@ public class DefaultDownloadService extends Service {
                 }
             });
         } else if (item.getState() != DownloadState.PAUSED && newState == DownloadTask.State.STOPPED) {
+            item.setState(DownloadState.PAUSED);
             database.updateItemState(item.getItemId(), DownloadState.PAUSED);
             listenerHandler.post(new Runnable() {
                 @Override
@@ -181,6 +190,11 @@ public class DefaultDownloadService extends Service {
 
         @Override
         public void onDownloadMetadata(DownloadItem item, Exception error) {
+
+        }
+
+        @Override
+        public void onDownloadRemoved(String itemId) {
 
         }
 
@@ -517,19 +531,29 @@ public class DefaultDownloadService extends Service {
         item.updateItemState(itemState);
     }
 
-    public void removeItem(DefaultDownloadItem item) {
+    public void removeItem(final DefaultDownloadItem item) {
         assertStarted();
 
         if (item == null) {
             return;
         }
+        if (item.getState() != DownloadState.IN_PROGRESS) {
+            listenerHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    downloadStateListener.onDownloadRemoved(item.getItemId());
+                }
+            });
+            removedItems.put(item.getItemId(), true);
+        } else {
+            pauseDownload(item);
+            // pauseDownload takes time to interrupt all downloads, and the downloads report their
+            // progress. Keep a list of the items that were removed in this session and ignore their
+            // progress.
+            removedItems.put(item.getItemId(), false);
+        }
 
-        pauseDownload(item);
 
-        // pauseDownload takes time to interrupt all downloads, and the downloads report their
-        // progress. Keep a list of the items that were removed in this session and ignore their
-        // progress.
-        removedItems.add(item.getItemId());
 
         deleteItemFiles(item.getItemId());
         database.removeItemFromDB(item);

@@ -70,14 +70,20 @@ public class ContentManagerImp extends ContentManager {
         }
 
         @Override
+        public void onDownloadRemoved(String itemId) {
+            for (DownloadStateListener stateListener : stateListeners) {
+                stateListener.onDownloadRemoved(itemId);
+            }
+        }
+
+        @Override
         public void onTracksAvailable(DownloadItem item, DownloadItem.TrackSelector trackSelector) {
             for (DownloadStateListener stateListener : stateListeners) {
                 stateListener.onTracksAvailable(item, trackSelector);
             }
         }
     };
-    
-    private int maxConcurrentDownloads;
+
     private Context context;
     private String sessionId;
     private String applicationName;

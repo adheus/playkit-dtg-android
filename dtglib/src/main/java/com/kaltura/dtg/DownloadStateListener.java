@@ -16,6 +16,8 @@ public interface DownloadStateListener {
     
     void onDownloadMetadata(DownloadItem item, Exception error);
 
+    void onDownloadRemoved(String itemId);
+
     /**
      * Allow application to modify the default track selection.
      * @param item

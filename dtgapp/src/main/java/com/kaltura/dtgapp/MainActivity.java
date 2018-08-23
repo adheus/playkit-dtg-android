@@ -228,6 +228,11 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
+            public void onDownloadRemoved(String itemId) {
+                Log.d(TAG, "onDownloadRemoved: " + itemId + "; ");
+            }
+
+            @Override
             public void onTracksAvailable(DownloadItem item, DownloadItem.TrackSelector trackSelector) {
 
                 // Policy-based selection
