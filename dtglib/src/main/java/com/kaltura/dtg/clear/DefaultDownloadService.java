@@ -725,14 +725,14 @@ public class DefaultDownloadService extends Service {
                         Thread.sleep(2000);
                         // continue
                     } catch (IOException ex) {
-                        DownloadItem item = findItem(itemId);
+                        DefaultDownloadItem item = findItem(itemId);
                         // If it was a connection error, pauses the download
                         ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
                         if (connManager != null) {
                             NetworkInfo networkInfo = connManager.getActiveNetworkInfo();
                             if (networkInfo != null && (!networkInfo.isConnected() || !networkInfo.isAvailable())) {
                                 if (item.getState() != DownloadState.PAUSED) {
-                                    item.pauseDownload();
+                                    pauseDownload(item, DownloadStateReason.PAUSED_BY_NETWORK);
                                     break;
                                 }
                             }
