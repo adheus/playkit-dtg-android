@@ -365,6 +365,7 @@ public class DefaultDownloadService extends Service {
                     downloadStateListener.onDownloadMetadata(item, e);
                 } catch (SQLiteConstraintException e) {
                     Log.e(TAG, "Failed to save metadata for " + item.getItemId() + ", removed: " + removedItems.contains(item.getItemId()), e);
+                    downloadStateListener.onDownloadMetadata(item, e);
                 }
             }
         });

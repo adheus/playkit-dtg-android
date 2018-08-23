@@ -183,7 +183,7 @@ class Database {
         helper.close();
     }
 
-    synchronized void addDownloadTasksToDB(final DownloadItem item, final List<DownloadTask> downloadTasks) {
+    synchronized void addDownloadTasksToDB(final DownloadItem item, final List<DownloadTask> downloadTasks) throws SQLException {
         doTransaction(new Transaction() {
             @Override
             public boolean execute(SQLiteDatabase db) {
@@ -198,6 +198,9 @@ class Database {
                         if (rowid <= 0) {
 //                            Log.d(TAG, "Warning: task not added:" + task.targetFile);
                         }
+                    } catch (SQLiteConstraintException e) {
+                        Log.e(TAG, "Failed to INSERT task: " + task.targetFile, e);
+                        throw e;
                     } catch (SQLException e) {
                         Log.e(TAG, "Failed to INSERT task: " + task.targetFile, e);
                     }
