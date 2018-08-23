@@ -30,9 +30,11 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -55,7 +57,7 @@ public class DefaultDownloadService extends Service {
     private Handler taskProgressHandler = null;
     private ContentManager.Settings settings;
 
-    private HashMap<String, Boolean> removedItems = new HashMap<>();
+    private HashSet<String> removedItems = new HashSet<>();
 
     public DefaultDownloadService(Context context) {
         this.context = context;
@@ -85,17 +87,8 @@ public class DefaultDownloadService extends Service {
         }
 
         final String itemId = task.itemId;
-        if (removedItems.containsKey(itemId)) {
-            if (!removedItems.get(itemId)) {
-                removedItems.put(itemId, true);
-                // Ignore this report.
-                listenerHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        downloadStateListener.onDownloadRemoved(itemId);
-                    }
-                });
-            }
+        if (removedItems.contains(itemId)) {
+            // Ignore this report.
             return;
         }
 
@@ -141,13 +134,6 @@ public class DefaultDownloadService extends Service {
                     downloadStateListener.onDownloadComplete(item);
                 }
             });
-        } else if (newState == DownloadTask.State.IN_PROGRESS) {
-            listenerHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    downloadStateListener.onProgressChange(item, totalBytes);
-                }
-            });
         } else if (item.getState() != DownloadState.PAUSED && newState == DownloadTask.State.STOPPED) {
             item.setState(DownloadState.PAUSED);
             database.updateItemState(item.getItemId(), DownloadState.PAUSED);
@@ -155,6 +141,13 @@ public class DefaultDownloadService extends Service {
                 @Override
                 public void run() {
                     downloadStateListener.onDownloadPause(item);
+                }
+            });
+        } else if (pendingCount > 0 || newState == DownloadTask.State.IN_PROGRESS) {
+            listenerHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    downloadStateListener.onProgressChange(item, totalBytes);
                 }
             });
         }
@@ -348,7 +341,7 @@ public class DefaultDownloadService extends Service {
             @Override
             public void run() {
                 try {
-                    if (!removedItems.containsKey(item.getItemId())) {
+                    if (!removedItems.contains(item.getItemId())) {
                         downloadMetadata(item);
                         item.setState(DownloadState.INFO_LOADED);
                         updateItemInfoInDB(item,
@@ -357,10 +350,10 @@ public class DefaultDownloadService extends Service {
                         downloadStateListener.onDownloadMetadata(item, null);
                     }
                 } catch (IOException e) {
-                    Log.e(TAG, "Failed to download metadata for " + item.getItemId() + ", removed: " + removedItems.containsKey(item.getItemId()), e);
+                    Log.e(TAG, "Failed to download metadata for " + item.getItemId() + ", removed: " + removedItems.contains(item.getItemId()), e);
                     downloadStateListener.onDownloadMetadata(item, e);
                 } catch (SQLiteConstraintException e) {
-                    Log.e(TAG, "Failed to save metadata for " + item.getItemId() + ", removed: " + removedItems.containsKey(item.getItemId()), e);
+                    Log.e(TAG, "Failed to save metadata for " + item.getItemId() + ", removed: " + removedItems.contains(item.getItemId()), e);
                 }
             }
         });
@@ -539,25 +532,20 @@ public class DefaultDownloadService extends Service {
         if (item == null) {
             return;
         }
-        if (item.getState() != DownloadState.IN_PROGRESS) {
-            listenerHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    downloadStateListener.onDownloadRemoved(item.getItemId());
-                }
-            });
-            removedItems.put(item.getItemId(), true);
-        } else {
-            pauseDownload(item);
-            // pauseDownload takes time to interrupt all downloads, and the downloads report their
-            // progress. Keep a list of the items that were removed in this session and ignore their
-            // progress.
-            removedItems.put(item.getItemId(), false);
-        }
+
+        removedItems.add(item.getItemId());
+        pauseDownload(item);
 
 
         deleteItemFiles(item.getItemId());
         database.removeItemFromDB(item);
+
+        listenerHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                downloadStateListener.onDownloadRemoved(item.getItemId());
+            }
+        });
     }
 
     private void deleteItemFiles(String item) {
