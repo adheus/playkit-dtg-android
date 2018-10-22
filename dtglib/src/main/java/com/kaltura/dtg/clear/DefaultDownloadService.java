@@ -744,7 +744,7 @@ public class DefaultDownloadService extends Service {
                         ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
                         if (connManager != null) {
                             NetworkInfo networkInfo = connManager.getActiveNetworkInfo();
-                            if (networkInfo != null && (!networkInfo.isConnected() || !networkInfo.isAvailable())) {
+                            if (networkInfo == null || (!networkInfo.isConnected() || !networkInfo.isAvailable())) {
                                 if (item.getState() != DownloadState.PAUSED) {
                                     pauseDownload(item, DownloadStateReason.PAUSED_BY_NETWORK);
                                     break;
