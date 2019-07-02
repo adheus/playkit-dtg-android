@@ -177,9 +177,15 @@ class DownloadTask {
             stopReason = State.STOPPED;
         } catch (IOException e) {
             // Log.d(TAG, "Task " + taskId + " failed", e);
-            stopReason = State.STOPPED;
-            stopError = e;
-            throw e;
+            if (e.getMessage() == null || !e.getMessage().endsWith("m4s is 404")) {
+                Log.e(TAG, e.getMessage());
+                stopReason = State.STOPPED;
+                stopError = e;
+                throw e;
+            } else {
+                Log.e(TAG, "Ignored missing segment");
+                stopReason = State.COMPLETED;
+            }
         } finally {
             Utils.safeClose(inputStream, fileOutputStream);
             if (conn != null) {
