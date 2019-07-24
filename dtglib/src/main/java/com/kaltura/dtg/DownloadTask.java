@@ -130,7 +130,11 @@ public class DownloadTask {
             conn.connect();
 
             int response = conn.getResponseCode();
-            if (response >= 400) {
+            if (response == 404) {
+                Log.e(TAG, "Ignoring missing segment: "+uri.toString());
+                stopReason = State.COMPLETED;
+                return;
+            } else if (response >= 400) {
                 throw new IOException(Utils.format("Response code for %s is %d", uri, response));
             }
 
