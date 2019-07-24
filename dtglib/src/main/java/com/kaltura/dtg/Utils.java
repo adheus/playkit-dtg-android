@@ -9,6 +9,7 @@ import android.util.Log;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,23 +17,26 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
-/**
- * Created by noamt on 5/13/15.
- */
 public class Utils {
     private static final String TAG = "DTGUtils";
 
-    public static String createTable(String name, String... coldefs) {
+    static String createTable(String name, String... colDefs) {
         StringBuilder sb = new StringBuilder();
         sb.append("CREATE TABLE ").append(name).append("(");
-        for (int i = 0; i < coldefs.length; i += 2) {
+        for (int i = 0; i < colDefs.length; i += 2) {
             if (i > 0) {
                 sb.append(",\n");
             }
-            sb.append(coldefs[i]).append(" ").append(coldefs[i + 1]);
+            sb.append(colDefs[i]).append(" ").append(colDefs[i + 1]);
         }
         sb.append(");");
         String str = sb.toString();
@@ -40,7 +44,7 @@ public class Utils {
         return str;
     }
 
-    public static String createUniqueIndex(String tableName, String... colNames) {
+    static String createUniqueIndex(String tableName, String... colNames) {
 
         String str = "CREATE UNIQUE INDEX " +
                 "unique_" + tableName + "_" + TextUtils.join("_", colNames) +
@@ -51,29 +55,7 @@ public class Utils {
         return str;
     }
 
-    public static HashMap<String, Object> map(Object... keyValuePairs) {
-        HashMap<String, Object> map = new HashMap<>();
-
-        for (int i = 0; i < keyValuePairs.length; i += 2) {
-            map.put((String) keyValuePairs[i], keyValuePairs[i + 1]);
-        }
-
-        return map;
-    }
-
-    public static String dropTables(String... tables) {
-        // TODO: what's this doing?
-        StringBuilder sb = new StringBuilder();
-        for (String table : tables) {
-            // semicolon supported in sqlite?
-            //sb.append("DROP TABLE IF EXISTS ").append(table).append(";\n");
-        }
-        String str = sb.toString();
-        Log.i("DBUtils", "Drop tables:\n" + str);
-        return str;
-    }
-    
-    public static long dirSize(File dir) {
+    private static long dirSize(File dir) {
 
         if (dir.exists()) {
             long result = 0;
@@ -92,7 +74,7 @@ public class Utils {
         return 0;
     }
 
-    public static void deleteRecursive(File fileOrDirectory) {
+    static void deleteRecursive(File fileOrDirectory) {
         if (fileOrDirectory.isDirectory()) {
             for (File child : fileOrDirectory.listFiles()) {
                 deleteRecursive(child);
@@ -100,9 +82,17 @@ public class Utils {
         }
         fileOrDirectory.delete();
     }
-    
+
     public static String format(String format, Object... args) {
         return String.format(Locale.ENGLISH, format, args);
+    }
+
+    public static boolean equals(Object a, Object b) {
+        return (a == b) || (a != null && a.equals(b));
+    }
+
+    public static int hash(Object... objects) {
+        return Arrays.hashCode(objects);
     }
 
     @NonNull
@@ -119,7 +109,7 @@ public class Utils {
         return sb.toString();
     }
 
-    public static byte[] md5(String input) {
+    private static byte[] md5(String input) {
         MessageDigest md;
         try {
             md = MessageDigest.getInstance("MD5");
@@ -145,13 +135,13 @@ public class Utils {
     // Download the URL to targetFile and also return the contents.
     // If file is larger than maxReturnSize, the returned array will have maxReturnSize bytes,
     // but the file will have all of them.
-    public static byte[] downloadToFile(URL url, File targetFile, int maxReturnSize) throws IOException {
+    public static byte[] downloadToFile(Uri uri, File targetFile, int maxReturnSize) throws IOException {
 
         InputStream inputStream = null;
         FileOutputStream fileOutputStream = null;
         HttpURLConnection conn = null;
         try {
-            conn = (HttpURLConnection) url.openConnection();
+            conn = openConnection(uri);
             conn.setRequestMethod("GET");
             conn.connect();
             inputStream = conn.getInputStream();
@@ -183,10 +173,14 @@ public class Utils {
         }
     }
 
-    public static long httpHeadGetLength(URL url) throws IOException {
+    public static byte[] downloadToFile(String url, File targetFile, int maxReturnSize) throws IOException {
+        return downloadToFile(Uri.parse(url), targetFile, maxReturnSize);
+    }
+
+    static long httpHeadGetLength(Uri uri) throws IOException {
         HttpURLConnection connection = null;
         try {
-            connection = (HttpURLConnection) url.openConnection();
+            connection = openConnection(uri);
             connection.setRequestMethod("HEAD");
             connection.setRequestProperty("Accept-Encoding", "");
             connection.connect();
@@ -207,46 +201,136 @@ public class Utils {
         }
     }
 
+    static HttpURLConnection openConnection(Uri uri) throws IOException {
+        if (uri == null) {
+            return null;
+        }
+        return (HttpURLConnection) new URL(uri.toString()).openConnection();
+    }
+
     @NonNull
-    public static ByteArrayOutputStream fullyReadInputStream(InputStream inputStream, int byteLimit) throws IOException {
+    private static ByteArrayOutputStream fullyReadInputStream(InputStream inputStream, int byteLimit) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         byte data[] = new byte[1024];
         int count;
 
-        while ((count = inputStream.read(data)) != -1) {
-            int maxCount = byteLimit - bos.size();
-            if (count > maxCount) {
-                bos.write(data, 0, maxCount);
-                break;
-            } else {
-                bos.write(data, 0, count);
+        try {
+            while ((count = inputStream.read(data)) != -1) {
+                int maxCount = byteLimit - bos.size();
+                if (count > maxCount) {
+                    bos.write(data, 0, maxCount);
+                    break;
+                } else {
+                    bos.write(data, 0, count);
+                }
             }
+            bos.flush();
+        } finally {
+            safeClose(bos);
+            safeClose(inputStream);
         }
-        bos.flush();
-        bos.close();
-        inputStream.close();
         return bos;
     }
 
     // Returns hex-encoded md5 of the input, appending the extension.
     // "a.mp4" ==> "2a1f28800d49717bbf88dc2c704f4390.mp4"
-    public static String getHashedFileName(String original) {
-        String ext = getFileExtension(original);
-        return md5Hex(original) + ext;
+    static String getHashedFileName(String original) {
+        String ext = getExtension(original);
+        return md5Hex(original) + '.' + ext;
     }
 
-    @NonNull
-    private static String getFileExtension(String pathOrURL) {
-        // if it's a URL, get only the path. Uri does this correctly, even if the argument is a simple path.
-        String path = Uri.parse(pathOrURL).getPath();
-
-        return path.substring(path.lastIndexOf('.'));
-    }
-
-    public static String toBase64(byte[] data) {
+    static String toBase64(byte[] data) {
         if (data == null || data.length == 0) {
             return null;
         }
         return Base64.encodeToString(data, Base64.NO_WRAP);
+    }
+
+    @NonNull
+    static List<BaseTrack> flattenTrackList(Map<DownloadItem.TrackType, List<BaseTrack>> tracksMap) {
+        List<BaseTrack> tracks = new ArrayList<>();
+        for (Map.Entry<DownloadItem.TrackType, List<BaseTrack>> entry : tracksMap.entrySet()) {
+            tracks.addAll(entry.getValue());
+        }
+        return tracks;
+    }
+
+    public static String resolveUrl(String baseUrl, String maybeRelative) {
+        if (maybeRelative == null) {
+            return null;
+        }
+        Uri uri = Uri.parse(maybeRelative);
+        if (uri.isAbsolute()) {
+            return maybeRelative;
+        }
+
+        // resolve with baseUrl
+        final Uri trackUri = Uri.parse(baseUrl);
+        final List<String> pathSegments = new ArrayList<>(trackUri.getPathSegments());
+        pathSegments.remove(pathSegments.size() - 1);
+        final String pathWithoutLastSegment = TextUtils.join("/", pathSegments);
+        uri = trackUri.buildUpon().encodedPath(pathWithoutLastSegment).appendEncodedPath(maybeRelative).build();
+        return uri.toString();
+    }
+
+    public static boolean mkdirs(File dir) {
+        return dir.mkdirs() || dir.isDirectory();
+    }
+
+    public static void mkdirsOrThrow(File dir) throws DirectoryNotCreatableException {
+        if (!mkdirs(dir)) {
+            throw new DirectoryNotCreatableException(dir);
+        }
+    }
+
+    public static byte[] readFile(File file, int byteLimit) throws IOException {
+        FileInputStream inputStream = new FileInputStream(file);
+        return fullyReadInputStream(inputStream, byteLimit).toByteArray();
+    }
+
+    public static long estimateTrackSize(int trackBitrate, long durationMS) {
+        return trackBitrate * durationMS / 1000 / 8;    // first multiply, then divide
+    }
+
+    public static Set<Integer> makeRange(int first, int last) {
+        if (last < first) {
+            return Collections.singleton(first);
+        }
+        Set<Integer> range = new HashSet<>();
+        for (int i = first; i <= last; i++) {
+            range.add(i);
+        }
+        return range;
+    }
+
+    @SuppressWarnings("WeakerAccess")
+    public static class DirectoryNotCreatableException extends IOException {
+
+        private static final long serialVersionUID = -1369279756939511377L;
+
+        private DirectoryNotCreatableException(File dir) {
+            super("Can't create directory " + dir);
+        }
+    }
+
+    public static String getExtension(String url) {
+
+        if (url == null) {
+            return null;
+        }
+
+        final Uri uri = Uri.parse(url);
+        if (uri == null) {
+            return null;
+        }
+
+        final String lastPathSegment = uri.getLastPathSegment();
+        if (TextUtils.isEmpty(lastPathSegment)) {
+            return "";
+        }
+
+        final int dot = lastPathSegment.lastIndexOf('.');
+
+        return dot >= 0 ? lastPathSegment.substring(dot + 1) : "";
     }
 }
