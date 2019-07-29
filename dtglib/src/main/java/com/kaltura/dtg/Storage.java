@@ -1,13 +1,14 @@
 package com.kaltura.dtg;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
 class Storage {
+    private static long REQUIRED_DATA_PARTITION_SIZE_BYTES = 200 * 1024 * 1024;
     private static File itemsDir;
     private static File dataDir;
     private static File downloadsDir;
@@ -31,6 +32,12 @@ class Storage {
     @NonNull
     static File getDownloadsDir() {
         return downloadsDir;
+    }
+
+    static boolean isLowDiskSpace(long requiredBytes) {
+        final long downloadsDirFreeSpace = downloadsDir.getFreeSpace();
+        final long dataDirFreeSpace = dataDir.getFreeSpace();
+        return downloadsDirFreeSpace < requiredBytes || dataDirFreeSpace < REQUIRED_DATA_PARTITION_SIZE_BYTES;
     }
 
     static void setup(Context context, ContentManager.Settings settings) throws IOException {

@@ -1,7 +1,7 @@
 package com.kaltura.dtg;
 
 import android.net.Uri;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
@@ -305,11 +305,15 @@ public class Utils {
 
     @SuppressWarnings("WeakerAccess")
     public static class DirectoryNotCreatableException extends IOException {
-
-        private static final long serialVersionUID = -1369279756939511377L;
-
         private DirectoryNotCreatableException(File dir) {
             super("Can't create directory " + dir);
+        }
+    }
+
+    @SuppressWarnings("WeakerAccess")
+    public static class LowDiskSpaceException extends IOException {
+        LowDiskSpaceException() {
+            super("Not enough disk space available");
         }
     }
 
