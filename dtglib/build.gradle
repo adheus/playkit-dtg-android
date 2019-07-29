@@ -5,13 +5,12 @@ apply plugin: 'maven'
 group='com.github.adheus'
 
 android {
-    compileSdkVersion 27
-    buildToolsVersion '27.0.3'
+    compileSdkVersion 28
     defaultConfig {
         minSdkVersion 16
-        targetSdkVersion 27
+        targetSdkVersion 28
         versionName dtglibVersion  // defined in version.gradle
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     
     buildTypes {
@@ -31,9 +30,7 @@ tasks.withType(Javadoc) {
 }
 
 dependencies {
-    implementation 'com.android.support:support-v4:27.1.1'
-    testImplementation 'junit:junit:4.12'
-    androidTestImplementation 'com.android.support.test:runner:1.0.2'
+    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
 }
 
 // build a jar with source files
