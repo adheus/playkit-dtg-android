@@ -12,19 +12,22 @@ import java.io.InterruptedIOException;
 import java.net.HttpRetryException;
 import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class DownloadTask {
     public static final int UNKNOWN_ORDER = -1;
     private static final String TAG = "DownloadTask";
     private static final int PROGRESS_REPORT_COUNT = 100;
+
+    // Custom Code: static map and integer used for tracking sequences of missing segments [RT]
     private static final int MISSING_SEGMENT_TOLERANCE = 3;
+    private static final ConcurrentHashMap<String, Integer> missingSequenceMap = new ConcurrentHashMap<>();
+    // end Custom Code
 
     final String taskId;
     final Uri url;
     final File targetFile;
     String itemId;
-
-    private int missingInSequence = 0;
 
     String trackRelativeId;
     int order;
@@ -136,14 +139,25 @@ public class DownloadTask {
             conn.connect();
 
             int response = conn.getResponseCode();
-            if (response == 404 && ++missingInSequence <= MISSING_SEGMENT_TOLERANCE) {
-                Log.e(TAG, "Ignoring missing segment: "+uri.toString());
-                stopReason = State.COMPLETED;
-                return;
-            } else if (response >= 400) {
-                throw new IOException(Utils.format("Response code for %s is %d", uri, response));
+
+            // Custom Code: Ignores missing segments unless we get more than
+            // {@link MISSING_SEGMENT_TOLERANCE} in a row [RT]
+            if (response == 404) {
+                int missingSegmentCount = (missingSequenceMap.containsKey(itemId) ?
+                        missingSequenceMap.get(itemId) : 0) + 1;
+                if (missingSegmentCount <= MISSING_SEGMENT_TOLERANCE) {
+                    missingSequenceMap.put(itemId, missingSegmentCount);
+                    Log.e(TAG, "itemId:" + itemId + " missingSegmentCount: " + missingSequenceMap.get(itemId) + " Ignoring missing segment: " + uri.toString());
+                    stopReason = State.COMPLETED;
+                    return;
+                }
             } else {
-                missingInSequence = 0;
+                missingSequenceMap.put(itemId, 0);
+            }
+            // end Custom Code
+
+            if (response >= 400) {
+                throw new IOException(Utils.format("Response code for %s is %d", uri, response));
             }
 
             inputStream = conn.getInputStream();
