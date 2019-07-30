@@ -166,6 +166,10 @@ public abstract class Representation {
    */
   public abstract String getCacheKey();
 
+  public String getBaseUrl() {
+    return baseUrl;
+  }
+
   /**
    * A DASH representation consisting of a single segment.
    */

@@ -108,7 +108,7 @@ public class DashDownloader extends AbrDownloader {
         RangedUri initializationUri = representation.getInitializationUri();
 
         if (initializationUri != null) {
-            addTask(initializationUri.resolveUri(manifestUrl), "init-" + reprId + ".mp4", dashTrack.getRelativeId(), 0);
+            addTask(initializationUri.resolveUri(representation.getBaseUrl()), "init-" + reprId + ".mp4", dashTrack.getRelativeId(), 0);
         }
 
         String ext = TextUtils.equals(representation.format.sampleMimeType, "text/vtt") ? ".vtt" : ".m4s";
