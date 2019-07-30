@@ -108,7 +108,9 @@ public class DashDownloader extends AbrDownloader {
         RangedUri initializationUri = representation.getInitializationUri();
 
         if (initializationUri != null) {
+            // Custom Code: Using the Representation's Base URL, in case it's not the default [RT]
             addTask(initializationUri.resolveUri(representation.getBaseUrl()), "init-" + reprId + ".mp4", dashTrack.getRelativeId(), 0);
+            // end Custom Code
         }
 
         String ext = TextUtils.equals(representation.format.sampleMimeType, "text/vtt") ? ".vtt" : ".m4s";
@@ -121,7 +123,9 @@ public class DashDownloader extends AbrDownloader {
             for (int i = 0; i < segmentCount; i++) {
                 final long segmentNum = rep.getFirstSegmentNum() + i;
                 RangedUri url = rep.getSegmentUrl(segmentNum);
-                addTask(url.resolveUri(manifestUrl), "seg-" + reprId + "-" + segmentNum + ext, dashTrack.getRelativeId(), i + 1);
+                // Custom Code: Using the Representation's Base URL, in case it's not the default [RT]
+                addTask(url.resolveUri(representation.getBaseUrl()), "seg-" + reprId + "-" + segmentNum + ext, dashTrack.getRelativeId(), i + 1);
+                // end Custom Code
             }
 
         } else if (representation instanceof Representation.SingleSegmentRepresentation) {
