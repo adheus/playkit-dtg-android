@@ -17,11 +17,14 @@ public class DownloadTask {
     public static final int UNKNOWN_ORDER = -1;
     private static final String TAG = "DownloadTask";
     private static final int PROGRESS_REPORT_COUNT = 100;
+    private static final int MISSING_SEGMENT_TOLERANCE = 3;
 
     final String taskId;
     final Uri url;
     final File targetFile;
     String itemId;
+
+    private int missingInSequence = 0;
 
     String trackRelativeId;
     int order;
@@ -51,7 +54,7 @@ public class DownloadTask {
     public void setOrder(int order) {
         this.order = order;
     }
-
+ 
 
     @Override
     public String toString() {
@@ -133,8 +136,14 @@ public class DownloadTask {
             conn.connect();
 
             int response = conn.getResponseCode();
-            if (response >= 400) {
+            if (response == 404 && ++missingInSequence <= MISSING_SEGMENT_TOLERANCE) {
+                Log.e(TAG, "Ignoring missing segment: "+uri.toString());
+                stopReason = State.COMPLETED;
+                return;
+            } else if (response >= 400) {
                 throw new IOException(Utils.format("Response code for %s is %d", uri, response));
+            } else {
+                missingInSequence = 0;
             }
 
             inputStream = conn.getInputStream();
