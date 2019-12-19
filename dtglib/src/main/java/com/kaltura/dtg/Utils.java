@@ -6,6 +6,8 @@ import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
 
+import com.kaltura.dtg.tls.EnableTls12;
+
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.File;
@@ -205,7 +207,8 @@ public class Utils {
         if (uri == null) {
             return null;
         }
-        return (HttpURLConnection) new URL(uri.toString()).openConnection();
+        // Custom Code: Enabling TLS v1.2 on devices using SDK 22 or bellow [RT]
+        return EnableTls12.onPreApi22((HttpURLConnection) new URL(uri.toString()).openConnection());
     }
 
     @NonNull
