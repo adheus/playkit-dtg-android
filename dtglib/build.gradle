@@ -5,7 +5,7 @@ apply plugin: 'maven'
 group='com.github.adheus'
 
 android {
-    compileSdkVersion 28
+    compileSdkVersion 29
     defaultConfig {
         minSdkVersion 16
         targetSdkVersion 28
@@ -23,20 +23,24 @@ android {
     testOptions {
         unitTests.returnDefaultValues = true
     }
+    compileOptions {
+        sourceCompatibility = 1.8
+        targetCompatibility = 1.8
+    }
 }
 
 tasks.withType(Javadoc) {
     options.addBooleanOption('Xdoclint:none', true)
 }
 
-dependencies {
-    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
-}
-
 // build a jar with source files
 task sourcesJar(type: Jar) {
     from android.sourceSets.main.java.srcDirs
     classifier = 'sources'
+}
+
+dependencies {
+    implementation 'androidx.annotation:annotation:1.1.0'
 }
 
 artifacts {

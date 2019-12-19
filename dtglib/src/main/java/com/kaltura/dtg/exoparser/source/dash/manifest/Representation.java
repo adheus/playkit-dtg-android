@@ -166,12 +166,6 @@ public abstract class Representation {
    */
   public abstract String getCacheKey();
 
-  // Custom Code: We need the Base URL in case the segment doesn't use the default one [RT]
-  public String getBaseUrl() {
-    return baseUrl;
-  }
-  // end Custom Code
-
   /**
    * A DASH representation consisting of a single segment.
    */

@@ -57,7 +57,7 @@ public class DownloadTask {
     public void setOrder(int order) {
         this.order = order;
     }
- 
+
 
     @Override
     public String toString() {
